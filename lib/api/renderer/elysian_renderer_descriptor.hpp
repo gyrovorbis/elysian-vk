@@ -1,34 +1,37 @@
 #ifndef ELYSIAN_RENDERER_DESCRIPTOR_HPP
 #define ELYSIAN_RENDERER_DESCRIPTOR_HPP
 
+#include "elysian_renderer_object.hpp"
+
 namespace elysian::renderer {
+
+class DescriptorPoolCreateInfo: public VkDescriptorPoolCreateInfo {
+public:
+    DescriptorPoolCreateInfo(VkDescriptorPoolCreateFlags  flags,
+               uint32_t                                   maxSets,
+               std::vector<VkDescriptorPoolSize>          poolSizes):
+        VkDescriptorPoolCreateInfo({
+            VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+            nullptr,
+            flags,
+            maxSets,
+            poolSizes.size(),
+            poolSizes.data()
+        }),
+        m_poolSizes(std::move(poolSizes))
+    {}
+
+    auto                getFlags(void) const -> VkDescriptorPoolCreateFlags;
+    uint32_t            getMaxSets(void) const;
+    auto                getPoolSizes(void) const -> const std::vector<VkDescriptorPoolSize>&;
+
+private:
+    std::vector<VkDescriptorPoolSize>   m_poolSizes;
+};
+
 
 class DescriptorPool {
 public:
-
-    class CreateInfo: public VkDescriptorPoolCreateInfo {
-    public:
-        CreateInfo(VkDescriptorPoolCreateFlags          flags,
-                   uint32_t                             maxSets,
-                   std::vector<VkDescriptorPoolSize>    poolSizes):
-            VkDescriptorPoolCreateInfo({
-                VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-                nullptr,
-                flags,
-                maxSets,
-                poolSizes.size(),
-                poolSizes.data()
-            }),
-            m_poolSizes(std::move(poolSizes))
-        {}
-
-        auto                getFlags(void) const -> VkDescriptorPoolCreateFlags;
-        uint32_t            getMaxSets(void) const;
-        auto                getPoolSizes(void) const -> const std::vector<VkDescriptorPoolSize>&;
-
-    private:
-        std::vector<VkDescriptorPoolSize>   m_poolSizes;
-    };
 
     struct Initializer {
         std::string name;
@@ -48,11 +51,18 @@ public:
     const char*         getName(void) const;
     const CreateInfo&   getCreateInfo(void) const;
 
+    Result              reset(VkDescriptorPoolResetFlags flags) const;
+
+
 private:
     Initializer         m_initializer;
     VkDescriptorPool    m_handle = VK_INVALID_HANDLE;
     Result              m_result;
 };
+
+inline Result DescriptorPool::reset(VkDescriptorPoolResetFlags flags) const {
+    return vkResetDescriptorPool(m_pDevice->getHandle(), getHandle(), flags);
+}
 
 //======= DESCRIPTOR SETS ==========
 // Provided by VK_VERSION_1_0
@@ -75,19 +85,101 @@ VkResult vkFreeDescriptorSets(
     uint32_t                                    descriptorSetCount,
     const VkDescriptorSet*                      pDescriptorSets);
 
-class DescriptorSet {
+#if 1
+// Provided by VK_VERSION_1_1
+VkResult vkCreateDescriptorUpdateTemplate(
+    VkDevice                                    device,
+    const VkDescriptorUpdateTemplateCreateInfo* pCreateInfo,
+    const VkAllocationCallbacks*                pAllocator,
+    VkDescriptorUpdateTemplate*                 pDescriptorUpdateTemplate);
+
+// Provided by VK_VERSION_1_1
+void vkDestroyDescriptorUpdateTemplate(
+    VkDevice                                    device,
+    VkDescriptorUpdateTemplate                  descriptorUpdateTemplate,
+    const VkAllocationCallbacks*                pAllocator);
+
+// Provided by VK_VERSION_1_1
+typedef struct VkDescriptorUpdateTemplateCreateInfo {
+    VkStructureType                           sType;
+    const void*                               pNext;
+    VkDescriptorUpdateTemplateCreateFlags     flags;
+    uint32_t                                  descriptorUpdateEntryCount;
+    const VkDescriptorUpdateTemplateEntry*    pDescriptorUpdateEntries;
+    VkDescriptorUpdateTemplateType            templateType;
+    VkDescriptorSetLayout                     descriptorSetLayout;
+    VkPipelineBindPoint                       pipelineBindPoint;
+    VkPipelineLayout                          pipelineLayout;
+    uint32_t                                  set;
+} VkDescriptorUpdateTemplateCreateInfo;
+#endif
+
+class DescriptorUpdateTemplate:
+        public HandleObject<VkDescriptorUpdateTemplate,
+                            VK_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE>
+{
+public:
+
+private:
+};
+
+class DescriptorSet: public HandleObject<VkDescriptorSet, VK_OBJECT_TYPE_DESCRIPTOR_SET>  {
 public:
                             DescriptorSet(VkDescriptorSet handle, const DescriptorSetLayout* pLayout);
 
-    operator                VkDescriptorSet() const;
 
     auto                    getLayout(void) const -> const DescriptorSetLayout*;
 
-    bool                    isValid(void) const;
-    VkDescriptorSet         getHandle(void) const;
+#if 0
+    typedef struct VkWriteDescriptorSet {
+        VkStructureType                  sType;
+        const void*                      pNext;
+        VkDescriptorSet                  dstSet;
+        uint32_t                         dstBinding;
+        uint32_t                         dstArrayElement;
+        uint32_t                         descriptorCount;
+        VkDescriptorType                 descriptorType;
+        const VkDescriptorImageInfo*     pImageInfo;
+        const VkDescriptorBufferInfo*    pBufferInfo;
+        const VkBufferView*              pTexelBufferView;
+    } VkWriteDescriptorSet;
+
+    typedef struct VkCopyDescriptorSet {
+        VkStructureType    sType;
+        const void*        pNext;
+        VkDescriptorSet    srcSet;
+        uint32_t           srcBinding;
+        uint32_t           srcArrayElement;
+        VkDescriptorSet    dstSet;
+        uint32_t           dstBinding;
+        uint32_t           dstArrayElement;
+        uint32_t           descriptorCount;
+    } VkCopyDescriptorSet;
+#endif
+    void                    write(const VkWriteDescriptorSet& write) const;
+    void                    copy(const VkCopyDescriptorSet& copy) const;
+    void        `           updateWithTemplate(VkDescriptorUpdateTemplate descriptorUpdateTemplate, const void* pData);
+
+
+#if 0
+    // Provided by VK_VERSION_1_0
+    void vkUpdateDescriptorSets(
+        VkDevice                                    device,
+        uint32_t                                    descriptorWriteCount,
+        const VkWriteDescriptorSet*                 pDescriptorWrites,
+        uint32_t                                    descriptorCopyCount,
+        const VkCopyDescriptorSet*                  pDescriptorCopies);
+
+    // Provided by VK_VERSION_1_1
+    void vkUpdateDescriptorSetWithTemplate(
+        VkDevice                                    device,
+        VkDescriptorSet                             descriptorSet,
+        VkDescriptorUpdateTemplate                  descriptorUpdateTemplate,
+        const void*                                 pData);
+
+#endif
 
 private:
-    VkDescriptorSet             m_handle    = VK_INVALID_HANDLE;
     const DescriptorSetLayout*  m_pLayout   = nullptr;
 };
 
@@ -96,43 +188,43 @@ inline DescriptorSet::DescriptorSet(VkDescriptorSet handle, const DescriptorSetL
     m_pLayout(pLayout)
 {}
 
-inline bool DescriptorSet::isValid(void) const { return getHandle() != VK_INVALID_HANDLE; }
 inline const DescriptorSetLayout* DescriptorSet::getLayout(void) const { return m_pLayout; }
-inline VkDescriptorSet DescriptorSet::getHandle(void) const { return m_handle; }
 
+
+class DescriptorSetAllocateInfo: public VkDescriptorSetAllocateInfo {
+public:
+    DescriptorSetAllocateInfo(const DescriptorPool* pPool, std::vector<const DescriptorSetLayout*> layouts):
+        m_pPool(pPool),
+        m_layouts(std::move(layouts))
+    {
+        std::vector<VkDescriptorSetLayout> vkLayouts;
+        for(const auto&& layout : m_layouts) {
+            vkLayouts.push_back(layout->getHandle());
+        }
+
+        const auto tempInfo = VkDescriptorSetAllocateInfo {
+            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            nullptr,
+            m_pPool->getHandle(),
+            vkLayouts.size(),
+            vkLayouts.data()
+        };
+
+        memcpy(static_cast<VkDescriptorSetAllocateInfo*>(this),
+               &tempInfo,
+               sizeof(VkDescriptorSetAllocateInfo));
+    }
+
+    auto getLayouts(void) const -> std::vector<const DescriptorSetLayout*>&;
+
+private:
+    const DescriptorPool* m_pPool = nullptr;
+    std::vector<const DescriptorSetLayout*> m_layouts;
+};
 
 class DescriptorSetGroup {
 public:
-    class AllocateInfo: public VkDescriptorSetAllocateInfo {
-    public:
-        AllocateInfo(const DescriptorPool* pPool, std::vector<const DescriptorSetLayout*> layouts):
-            m_pPool(pPool),
-            m_layouts(std::move(layouts))
-        {
-            std::vector<VkDescriptorSetLayout> vkLayouts;
-            for(const auto&& layout : m_layouts) {
-                vkLayouts.push_back(layout->getHandle());
-            }
 
-            const auto tempInfo = VkDescriptorSetAllocateInfo {
-                VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-                nullptr,
-                m_pPool->getHandle(),
-                vkLayouts.size(),
-                vkLayouts.data()
-            };
-
-            memcpy(static_cast<VkDescriptorSetAllocateInfo*>(this),
-                   &tempInfo,
-                   sizeof(VkDescriptorSetAllocateInfo));
-        }
-
-        auto getLayouts(void) const -> std::vector<const DescriptorSetLayout*>&;
-
-    private:
-        const DescriptorPool* m_pPool = nullptr;
-        std::vector<const DescriptorSetLayout*> m_layouts;
-    };
 
     struct Initializer {
         std::string name;
@@ -191,7 +283,7 @@ public:
                                VkDescriptorType       descriptorType, //uniform buffer, sampler?, etc
                                VkShaderStageFlags     stageFlags,
                                uint32_t               descriptorCount=1, //array size
-                               std::vector<VkSampler> immutableSamplers):
+                               std::vector<VkSampler> immutableSamplers={}):
         VkDescriptorSetLayoutBinding({
             binding,
             descriptorType,

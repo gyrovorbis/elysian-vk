@@ -1,8 +1,16 @@
 #ifndef ELYSIAN_RENDERER_DEVICE_HPP
 #define ELYSIAN_RENDERER_DEVICE_HPP
 
+#include "elysian_renderer_queue.hpp"
+#include "elysian_renderer_object.hpp"
+
 namespace elysian::renderer {
 
+class PhysicalDevice;
+class CommandPool;
+class CommandPoolCreateInfo;
+
+#if 0
 struct PhysicalDeviceSelector {
 public:
     int operator()(const PhysicalDevice* pDevice) {
@@ -19,28 +27,16 @@ public:
     std::function<int(const VkPhysicalDeviceFeatures*)> m_featureSelector;
     std::function<int(const VkPhysicalDeviceMemoryProperties*)> m_memoryPropertySelector;
 };
+#endif
 
-class PhysicalDevice {
-private:
-    std::vector<VkQueueFamilyProperties> m_queueFamilyProperties;
-    VkPhysicalDeviceProperties m_properties;
-    VkPhysicalDeviceFeatures m_features;
-    VkPhysicalDevice m_device = VK_NULL_HANDLE;
-public:
-
-    PhysicalDevice(VkPhysicalDevice physicalDevice);
-
-    bool isValid(void) const;
-
-    const VkPhysicalDeviceProperties*  getProperties(void) const;
-    const vkPhysicalDeviceFeatures* getFeatures(void) const;
-    const VkPhysicalDeviceMemoryProperties* getMemoryProperties(void) const;
-    const auto getQueueFamilyProperties(void) const -> std::vector<VkQueueFamilyProperties>&;
-
-    friend std::ostream& operator<<(std::ostream& os, const PhysicalDevice& device);
+struct DeviceCreateInfo {
+    std::vector<QueueGroupCreateInfo> queueGroupInfo;
+    std::vector<const char*> enabledExtensions;
+    const VkPhysicalDeviceFeatures* pFeatures   = nullptr;
 };
 
-class Device {
+
+class Device: public HandleObject<VkDevice, VK_OBJECT_TYPE_DEVICE> {
 public:
 #if 0
     typedef struct VkDeviceCreateInfo {
@@ -55,105 +51,29 @@ public:
         const char* const*                 ppEnabledExtensionNames;
         const VkPhysicalDeviceFeatures*    pEnabledFeatures;
     } VkDeviceCreateInfo;
+
+    // Provided by VK_EXT_display_control
+    VkResult vkRegisterDeviceEventEXT(
+        VkDevice                                    device,
+        const VkDeviceEventInfoEXT*                 pDeviceEventInfo,
+        const VkAllocationCallbacks*                pAllocator,
+        VkFence*                                    pFence);
 #endif
 
-    //Layers are no longer distinguished between Instance and Devices! Device layers ignored!
-    // - supports way more shit with pNext
-    class CreateInfo: public VkDeviceCreateInfo {
-    public:
-        CreateInfo(std::vector<QueueGroup::CreateInfo> queueGroupInfos={},
-                   std::vector<const char*> enabledExtensions={},
-                   const VkPhysicalDeviceFeatures* pFeatures=nullptr):
-            VkDeviceCreateInfo({
-                VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-                nullptr,
-                0,
-                queueInfos.size(),
-                queueInfos.data(),
-                0,
-                nullptr,
-                enabledExtensions.size(),
-                enabledExtensions.data(),
-                pFeatures
-            })
-        {}
-    private:
-        VkPhysicalDeviceFeatures* pFeatures=nullptr;
-    };
 
-    struct Initializer {
-        const char* pName                           = nullptr;
-        std::vector<const char*> enabledExtensions;
-        const VkPhysicalDeviceFeatures* pFeatures   = nullptr;
-        std::vector<QueueGroup::CreateInfo> queueGroupInfo;
-        const PhysicalDevice* pDevice               = nullptr;
-    };
+    Device(const char* pName, const PhysicalDevice* pDevice, std::shared_ptr<const DeviceCreateInfo> pCreateInfo, Renderer* pRenderer);
+    Device(Device&& rhs);
 
-    Device(Initializer initializer, Renderer* pRenderer):
-        m_name(initializer.pName),
-        m_pPhysicalDevice(initializer.pDevice),
-        m_pRenderer(pRenderer)
-    {
-        std::vector<VkDeviceQueueCreateInfo> queueCreateInfo(initializer.queueGroupInfo.size());
-        std::vector<float> queuePriorityPool;
-        for(int g = 0; g < initializer.queueGroupInfo.size(); ++g) {
-            VkDeviceQueueCreateInfo info = {
-                VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-                nullptr,
-                initializer.queueGroupInfo[g].flags, // FUCKING FLAGS
-                initializer.queueGroupInfo[g].properties.getFamilyIndex(),
-                initializer.queueGroupInfo[g].queueProperties.size()
-            };
-            int startPriorityIdx = std::max(queuePriorityPool.size() - 1, 0);
-            for(int q = 0; q < initializer.queueGroupInfo[g].queueProperties.size(); ++q) {
-                queuePriorityPool.push_back(initializer.queueGroupInfo[g].queueProperties[q].priority);
-            }
-            info.pQueuePriorities = &queuePriorityPool[startPriorityIdx];
-            queueCreateInfo.push_back(std::move(info));
-        }
+    virtual ~Device(void);
 
-        VkDeviceCreateInfo deviceCreateInfo = {
-            VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-            nullptr,
-            0,
-            queueCreateInfo.size(),
-            queueCreateInfo.data(),
-            0,
-            nullptr,
-            initializer.enabledExtensions.size(),
-            initializer.enabledExtensions.data(),
-            initializer.pFeatures
-        };
-
-        m_result = vkCreateDevice(
-            m_pPhysicalDevice,
-            &deviceCreateInfo,
-            m_pRenderer.getAllocator(),
-            &m_device);
-
-        if(m_result) {
-            m_queueGroups = new vector<QueueGroup>(initializer.queueGroupInfo.size());
-            for(int g = 0; g < initializer.queueGroupInfo.size(); ++g) {
-                m_queueGroups->push_back(QueueGroup(QueueGroup::Initializer(std::move(initializer.queueGroupInfo[g]), this)));
-                m_result &= m_queueGroups->last().isValid();
-            }
-        }
-    }
-
-    ~Device(void) {
-        vkDestroyDevice(m_device, m_pRenderer->getAllocator());
-    }
-
-    operator VkDevice(void) const { return m_device; }
-
-    const char* getName(void) const { return m_name; }
     const PhysicalDevice& getPhysicalDevice(void) const { return *m_pPhysicalDevice; }
+    std::shared_ptr<const DeviceCreateInfo> getCreateInfo(void) const { return m_pCreateInfo; }
 
     const QueueGroup* getQueueGroup(int index) const;
     const QueueGroup* getQueueGroup(const char* pName) const;
     const QueueGroup* getQueueGroupByFamily(int familyIndex) const;
 
-    auto getQueueGroups(void) const -> const std::vector<QueueGroup>& { return m_queueGroups; }
+    auto getQueueGroups(void) const -> const std::vector<QueueGroup>& { return *m_queueGroups; }
 
     template<typename G, typename Q>
     const Queue* getQueue(G groupId, Q indexId={}) const {
@@ -162,16 +82,31 @@ public:
 
     template<typename Q>
     const Queue* getQueueByFamily(int familyIndex, Q indexId={}) const {
-        return getQueueGroupByFamily(familyIndex).getQueue(indexId);
+        return getQueueGroupByFamily(familyIndex)->getQueue(indexId);
     }
 
     template<typename G>
     auto getQueues(G groupId) const -> const std::vector<Queue>& { return getQueueGroup(groupId)->getQueues(); }
 
-    VkResult waitIdle(void) const { return vkDeviceWaitIdle(m_device); }
+    Result waitIdle(void) const { return vkDeviceWaitIdle(getHandle()); }
 
-    bool isValid(void) const { return m_result && m_device != VK_INVALID_HANDLE; }
     Result getResult(void) const { return m_result; }
+
+    PFN_vkVoidFunction getProcAddr(const char* pName) const;
+    VkPeerMemoryFeatureFlags getPeerMemoryFeatures(uint32_t heapIndex, uint32_t localDeviceIndex, uint32_t remoteDeviceIndex) const;
+
+    CommandPool* createCommandPool(const CommandPoolCreateInfo* pInfo) const;
+
+#if 0
+    void vkGetDescriptorSetLayoutSupport(
+        VkDevice                                    device,
+        const VkDescriptorSetLayoutCreateInfo*      pCreateInfo,
+        VkDescriptorSetLayoutSupport*               pSupport);
+#endif
+
+
+    void log(DebugLog* pLog) const;
+
 
 #if 0
     // Provided by VK_VERSION_1_0
@@ -196,16 +131,24 @@ public:
         const VkMappedMemoryRange*                  pMemoryRanges);
 
 #endif
-protected:
 
 private:
+    std::shared_ptr<const DeviceCreateInfo>  m_pCreateInfo;
     std::unique_ptr<std::vector<QueueGroup>> m_queueGroups;
-    std::string                              m_name;
-    VkDevice                                 m_device            = VK_INVALID_HANDLE;
     const PhysicalDevice*                    m_pPhysicalDevice   = nullptr;
     Renderer*                                m_pRenderer         = nullptr;
     Result                                   m_result;
 };
+
+
+inline Device::Device(Device&& rhs):
+    m_pCreateInfo(std::move(rhs.m_pCreateInfo)),
+    m_queueGroups(std::move(rhs.m_queueGroups)),
+    m_pPhysicalDevice(rhs.m_pPhysicalDevice),
+    m_pRenderer(rhs.m_pRenderer),
+    m_result(rhs.m_result)
+{}
+
 
 
 

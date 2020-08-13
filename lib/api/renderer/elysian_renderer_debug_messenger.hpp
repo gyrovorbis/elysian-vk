@@ -9,50 +9,90 @@ namespace elysian::renderer {
 // create and destroy DebugUtilsMessengerEXT on Instance
 // pass create flags to instance creation/deletion
 
+//this is just the top-level shit, shouldn't be used directly
+//instance uses this,
+#if 0
+Renderer* pRenderer = new Renderer(new Renderer::Initializer{
+                                       new QtLog(),
+                                       nullptr, //allocator
+                                       new InstanceInitializer {
+                                           InstanceCreateInfo = {
+                                               layers = {},
+                                               extensions = {}
+                                           },
+                                           debugMessages = new DebugCreateInfo { //nullptr then no debuggage
+                                               source = BLAH,
+                                               severity = BLAH
+                                                callback = nullptr; //use parent
+                                           }
+                                       }
+                                       //device shit
+                                   });
+
+#endif
 using DebugUtilsMessengerLogger =
     std::function<void(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                        VkDebugUtilsMessageTypeFlagsEXT messageType,
                        const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData)>;
 
+class DebugUtilsMessengerEXTCreateInfo: public VkDebugUtilsMessengerCreateInfoEXT {
+public:
+    DebugUtilsMessengerEXTCreateInfo(VkDebugUtilsMessageSeverityFlagsEXT messageSeverity =
+                    VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+                    VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
+                    VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+                    VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+                VkDebugUtilsMessageTypeFlagsEXT messageType =
+                    VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+                    VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                    VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+                PFN_vkDebugUtilsMessengerCallbackEXT callback=nullptr,
+                void* pUserData=nullptr);
+
+    DebugUtilsMessengerEXTCreateInfo(VkDebugUtilsMessageSeverityFlagsEXT messageSeverity,
+                VkDebugUtilsMessageTypeFlagsEXT messageType,
+        DebugUtilsMessengerLogger logger):
+        DebugUtilsMessengerEXTCreateInfo(messageSeverity, messageType, nullptr, nullptr)
+    {
+        setLogger(std::move(logger));
+    }
+
+    void setLogger(DebugUtilsMessengerLogger logger) {
+        m_pLogger = std::move(logger);
+        pfnUserCallback = &DebugUtilsMessengerEXTCreateInfo::debugCallback;
+        pUserData = this;
+    }
+
+    DebugUtilsMessengerLogger getLogger(void) const { return m_pLogger; }
+
+protected:
+    static VKAPI_ATTR
+    VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+                                      VkDebugUtilsMessageTypeFlagsEXT messageType,
+                                      const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+                                      void* pUserData);
+
+private:
+    DebugUtilsMessengerLogger m_pLogger;
+};
+
+struct DebugUtilsMessengerEXTInitializer {
+    DebugUtilsMessengerEXTCreateInfo info;
+};
+
 
 class DebugUtilsMessengerEXT {
 public:
-    class CreateInfo: public VkDebugUtilsMessengerCreateInfoEXT {
-        CreateInfo(VkDebugUtilsMessageSeverityFlagsEXT messageSeverity =
-                        VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-                        VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
-                        VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-                        VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
-                    VkDebugUtilsMessageTypeFlagsEXT messageType =
-                        VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-                        VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-                        VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT):
-            VkDebugUtilsMessengerCreateInfoEXT({
-                VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-                nullptr,
-                0,
-                messageSeverity,
-                messageType,
-                &debugCallback,
-                nullptr //populated later!
-            })
-        {}
-    };
 
-    struct Initializer {
-        CreateInfo info;
-        DebugUtilsMessengerLogger logger;
-        Instance* pInstance;
-    };
-
-    DebugUtilsMessengerEXT(Initializer initializer);
+    DebugUtilsMessengerEXT(DebugUtilsMessengerEXTCreateInfo* pInfo, Instance* pInstance);
     ~DebugUtilsMessengerEXT(void);
 
-    const DebugUtilsMessengerLogger& getLogger(void) const { return m_logger; }
-    const CreateInfo& getCreateInfo(void) const;
+    const DebugUtilsMessengerLogger& getLogger(void) const;
+    const DebugUtilsMessengerEXTCreateInfo& getCreateInfo(void) const;
 
     bool isValid(void) const;
     Result getResult(void) const;
+
 protected:
 
     static VkResult createDebugUtilsMessengerEXT(VkInstance instance,
@@ -64,39 +104,29 @@ protected:
                                               VkDebugUtilsMessengerEXT debugMessenger,
                                               const VkAllocationCallbacks* pAllocator);
 
-    static VKAPI_ATTR
-    VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-                                      VkDebugUtilsMessageTypeFlagsEXT messageType,
-                                      const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-                                      void* pUserData);
-
 private:
-    CreateInfo                  m_createInfo;
+    DebugUtilsMessengerEXTCreateInfo*                  m_pCreateInfo;
     VkDebugUtilsMessengerEXT    m_handle = VK_NULL_HANDLE;
-    DebugUtilsMessengerLogger   m_logger;
     Instance*                   m_pInstance = nullptr;
     Result                      m_result;
 };
 
-inline DebugUtilsMessengerEXT::DebugUtilsMessengerEXT(Initializer initializer):
-    m_createInfo(std::move(initializer.info)),
-    m_logger(std::move(initializer.logger)),
-    m_pInstance(initializer.pInstance)
+inline DebugUtilsMessengerEXT::DebugUtilsMessengerEXT(DebugUtilsMessengerEXTCreateInfo* pInfo, Instance* pInstance):
+    m_pCreateInfo(pInfo),
+    m_pInstance(pInstance)
 {
-    initializer.info.pUserData = &logger;
-    m_result = createDebugUtilsMessengerEXT(m_pInstance, &m_createInfo, nullptr, &m_handle);
+    m_result = createDebugUtilsMessengerEXT(m_pInstance->getHandle(), m_pCreateInfo, nullptr, &m_handle);
 }
 
 inline DebugUtilsMessengerEXT::~DebugUtilsMessengerEXT(void) {
-    destroyDebugUtilsMessengerEXT(m_pInstance, m_handle, nullptr);
+    destroyDebugUtilsMessengerEXT(m_pInstance->getHandle(), m_handle, nullptr);
 }
 
-inline const DebugUtilsMessengerLogger& DebugUtilsMessengerEXT::getLogger(void) const { return m_logger; }
-inline auto DebugUtilsMessengerEXT::getCreateInfo(void) const -> const CreateInfo& { return m_createInfo; }
+inline auto DebugUtilsMessengerEXT::getCreateInfo(void) const -> const DebugUtilsMessengerEXTCreateInfo& { return *m_pCreateInfo; }
 
 inline VkResult DebugUtilsMessengerEXT::createDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const
 VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) {
-    auto func = static_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance,
+    auto func = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance,
                                                                 "vkCreateDebugUtilsMessengerEXT"));
     if (func) {
         return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
@@ -106,26 +136,29 @@ VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) {
 }
 
 inline void DebugUtilsMessengerEXT::destroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
-    auto func = static_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance,
+    auto func = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance,
                                                                                        "vkDestroyDebugUtilsMessengerEXT"));
     if (func) {
         func(instance, debugMessenger, pAllocator);
     }
 }
 
-VKAPI_ATTR
-VkBool32 VKAPI_CALL DebugUtilsMessengerEXT::debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-                                  VkDebugUtilsMessageTypeFlagsEXT messageType,
-                                  const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-                                  void* pUserData)
-{
-    auto logger = reinterpret_cast<DebugUtilsMessengerEXT*>(pUserData)->getLogger();
-    if(logger) {
-        logger(messageSeverity, messageType, pCallbackData);
-    } else {
-        std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
-    }
-    return VK_FALSE;
+
+inline DebugUtilsMessengerEXTCreateInfo::DebugUtilsMessengerEXTCreateInfo(VkDebugUtilsMessageSeverityFlagsEXT messageSeverity,
+                VkDebugUtilsMessageTypeFlagsEXT messageType,
+                PFN_vkDebugUtilsMessengerCallbackEXT callback,
+                void* pUserData):
+        VkDebugUtilsMessengerCreateInfoEXT({
+            VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+            nullptr,
+            0,
+            messageSeverity,
+            messageType,
+            callback,
+            pUserData
+        })
+    {}
+
 }
 
 

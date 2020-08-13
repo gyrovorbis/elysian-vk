@@ -5,34 +5,26 @@
 
 namespace elysian::renderer::pipeline {
 
-class ShaderStage: public VkPipelineShaderStageCreateInfo {
-public:
-    ShaderStage(VkPipelineShaderStageCreateFlags            flags,
-                        VkShaderStageFlagBits               stage,
-                        ShaderModule*                       pModule,
-                        const char*                         pName,
-                        const VkSpecializationInfo*         pSpecializationInfo):
-        VkPipelineShaderStageCreateInfo({
-            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            nullptr,
-            flags,
-            stage,
-            pModule,
-            pName,
-            pSpecializationInfo
-        }),
-        m_pModule(pModule)
-    {}
+#if 0
+VkResult vkGetPipelineExecutablePropertiesKHR(
+    VkDevice                                    device,
+    const VkPipelineInfoKHR*                    pPipelineInfo,
+    uint32_t*                                   pExecutableCount,
+    VkPipelineExecutablePropertiesKHR*          pProperties);
 
-    const ShaderModule*     getModule(void) const;
-    VkShaderStageFlagBits   getStage(void) const;
-    const char*             getEntryPoint(void) const;
-private:
-    ShaderModule*                       m_pModule = nullptr;
-    //specialization info
-};
+VkResult vkGetPipelineExecutableStatisticsKHR(
+    VkDevice                                    device,
+    const VkPipelineExecutableInfoKHR*          pExecutableInfo,
+    uint32_t*                                   pStatisticCount,
+    VkPipelineExecutableStatisticKHR*           pStatistics);
 
+VkResult vkGetPipelineExecutableInternalRepresentationsKHR(
+    VkDevice                                    device,
+    const VkPipelineExecutableInfoKHR*          pExecutableInfo,
+    uint32_t*                                   pInternalRepresentationCount,
+    VkPipelineExecutableInternalRepresentationKHR* pInternalRepresentations);
 
+#endif
 
 class VertexInputBindingDescription: public VkVertexInputBindingDescription {
 public:
@@ -309,37 +301,6 @@ public:
             size
         })
     {}
-};
-
-class Layout: public VkPipelineLayoutCreateInfo {
-#if 0
-    // Provided by VK_VERSION_1_0
-    typedef struct VkPipelineLayoutCreateInfo {
-        VkStructureType                 sType;
-        const void*                     pNext;
-        VkPipelineLayoutCreateFlags     flags;
-        uint32_t                        setLayoutCount;
-        const VkDescriptorSetLayout*    pSetLayouts;
-        uint32_t                        pushConstantRangeCount;
-        const VkPushConstantRange*      pPushConstantRanges;
-    } VkPipelineLayoutCreateInfo;
-#endif
-public:
-    Layout(std::vector<DescriptorSetLayout> descriptorSetLayouts={},
-           std::vector<PushConstantRange>   pushConstants={}):
-        VkPipelineLayoutCreateInfo({
-            VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-            nullptr,
-            0,
-            descriptorSetLayouts.size(),
-            descriptorSetLayouts.data(),
-            pushConstants.size(),
-            pushConstants.data()
-        })
-    {}
-
-    DescriptorSetLayout* getDescriptorSetLayout(uint32_t set) const;
-    DescriptorSetLayout* getDescriptorSetLayout(const char* pName) const;
 };
 
 /*abstraction to let you shit out a bunch of pipelines with different fixed-function configurations

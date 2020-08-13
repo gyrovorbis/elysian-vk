@@ -1,21 +1,24 @@
 #ifndef ELYSIAN_RENDERER_MEMORY_HPP
 #define ELYSIAN_RENDERER_MEMORY_HPP
 
+#include "elysian_renderer_object.hpp"
+
 namespace elysian::renderer {
 
-class DeviceMemory {
+class DeviceMemoryAllocateInfo: public VkMemoryAllocateInfo {
 public:
-    class AllocateInfo: public VkMemoryAllocateInfo {
-    public:
-        AllocateInfo(VkDeviceSize allocationSize, uint32_t memoryTypeIndex, const void* pNext=nullptr):
-            VkMemoryAllocateInfo({
-                VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-                pNext,
-                allocationSize,
-                memoryTypeIndex //includes property flags PLUS heap index
-            })
-        {}
-    };
+    DeviceMemoryAllocateInfo(VkDeviceSize allocationSize, uint32_t memoryTypeIndex, const void* pNext=nullptr):
+        VkMemoryAllocateInfo({
+            VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            pNext,
+            allocationSize,
+            memoryTypeIndex //includes property flags PLUS heap index
+        })
+    {}
+};
+
+class DeviceMemory: public HandleObject<VkDeviceMemory, VK_OBJECT_TYPE_DEVICE_MEMORY> {
+public:
 
     struct Initializer {
         AllocateInfo    info;
@@ -23,17 +26,16 @@ public:
     };
 
                    DeviceMemory(Initializer initializer);
-                   ~DeviceMemory(void);
-    operator       VkDeviceMemory() const;
+                   DeviceMemory(const Device* pDevice, const DeviceMemoryAllocateInfo* pInfo);
+    virtual        ~DeviceMemory(void);
 
     Result         getResult(void) const;
-    bool           isValid(void) const;
 
-    VkDeviceMemory getHandle(void) const;
     uint32_t       getMemoryTypeIndex(void) const;
-    VkDeviceSize   getAllocationSize(void) const;
+    VkDeviceSize   getAllocationSize(void) const;   //bytes
+    VkDeviceSize   getMemoryCommitment(void) const; // bytes
 
-    VkResult       mapMemory(VkDeviceSize     offset,
+    Result          mapMemory(VkDeviceSize     offset,
                              VkDeviceSize     size,
                              VkMemoryMapFlags flags,
                              void**           ppData) const;
@@ -43,7 +45,6 @@ public:
 private:
     Initializer     m_initializer;
     Result          m_result;
-    VkDeviceMemory  m_handle        = VK_INVALID_HANDLE;
 };
 
 
@@ -60,20 +61,21 @@ inline DeviceMemory::~DeviceMemory(void) {
     vkFreeMemory(m_initializer.pDevice, getHandle(), nullptr);
 }
 
-inline DeviceMemory::operator VkDeviceMemory() const { return getHandle(); }
-
 inline Result DeviceMemory::getResult(void) const { return m_result; }
-inline bool DeviceMemory::isValid(void) const { return getResult() && getHandle() != VK_INVALID_HANDLE; }
-inline VkDeviceMemory DeviceMemory::getHandle(void) const { return m_handle; }
 inline uint32_t DeviceMemory::getMemoryTypeIndex(void) const { return m_initializer.info.memoryTypeIndex; }
 inline VkDeviceSize DeviceMemory::getAllocationSize(void) const { return m_initializer.info.memoryAllocSize; }
+inline VkDeviceSize DeviceMemory::getMemoryCommitment(void) const {
+    VkDeviceSize size = 0;
+    vkGetDeviceMemoryCommitment(m_initializer.pDevice, getHandle(), &size);
+    return size;
+}
 
 inline DeviceMemory::mapMemory(VkDeviceSize offset, VkDeviceSize size, VkMemoryMapFlags flags, void **ppData) const {
     return vkMapMemory(m_initializer.pDevice, getHandle(), offset, size, flags, ppData);
 }
 
 inline DeviceMemory::unmapMemory(void) const {
-    vkUnmapmemory(m_initializer.pDevice, getHandle());
+    vkUnmapMemory(m_initializer.pDevice, getHandle());
 }
 
 

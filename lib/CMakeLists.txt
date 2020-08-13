@@ -26,10 +26,21 @@ set(ELYSIAN_RENDERER_INCLUDES
     api/renderer/elysian_renderer_semaphore.hpp
     api/renderer/elysian_renderer_frame_buffer.hpp
     api/renderer/elysian_renderer_swap_chain.hpp
-    api/renderer/elysian_renderer_compute_pipeline.hpp)
+    api/renderer/elysian_renderer_compute_pipeline.hpp
+    api/renderer/elysian_renderer_physical_device.hpp
+    api/renderer/elysian_renderer_debug_log.hpp
+    api/renderer/elysian_renderer_object.hpp
+    api/renderer/elysian_renderer_query.hpp)
 
 set(ELYSIAN_RENDERER_SOURCES
-    source/elysian_renderer.cpp)
+    source/elysian_renderer.cpp
+    source/elysian_renderer_instance.cpp
+    source/elysian_renderer_physical_device.cpp
+    source/elysian_renderer_debug_log.cpp
+    source/elysian_renderer_object.cpp
+    source/elysian_renderer_queue.cpp
+    source/elysian_renderer_device.cpp
+    source/elysian_renderer_command.cpp)
 
 find_library(VULKAN_LIB      vulkan)
 find_library(MOLTENVK_LIB    MoltenVK)

@@ -1,7 +1,37 @@
 #ifndef ELYSIAN_RENDERER_BUFFER_HPP
 #define ELYSIAN_RENDERER_BUFFER_HPP
 
+#include "elysian_renderer_object.hpp"
+
 namespace elysian::renderer {
+
+#if 0
+// Provided by VK_VERSION_1_0
+VkResult vkCreateBufferView(
+    VkDevice                                    device,
+    const VkBufferViewCreateInfo*               pCreateInfo,
+    const VkAllocationCallbacks*                pAllocator,
+    VkBufferView*                               pView);
+
+// Provided by VK_VERSION_1_0
+typedef struct VkBufferViewCreateInfo {
+    VkStructureType            sType = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO;
+    const void*                pNext;
+    VkBufferViewCreateFlags    flags;
+    VkBuffer                   buffer;
+    VkFormat                   format;
+    VkDeviceSize               offset;
+    VkDeviceSize               range;
+} VkBufferViewCreateInfo;
+
+// Provided by VK_VERSION_1_0
+void vkDestroyBufferView(
+    VkDevice                                    device,
+    VkBufferView                                bufferView,
+    const VkAllocationCallbacks*                pAllocator);
+
+
+#endif
 /*
 // 1 - Buffer and Image might share commonality in "Resource" base
 // 2 - DeviceMemory simplification
@@ -13,26 +43,27 @@ namespace elysian::renderer {
         c. uniform buffer
         d. samplers?
      */
-class Buffer {
-public:
 
-    class CreateInfo: public VkBufferCreateInfo {
-        CreateInfo(VkBufferCreateFlags   flags,
-                   VkDeviceSize          size,
-                   VkBufferUsageFlags    usage,
-   \               std::vector<uint32_t> queueFamilyIndices={}): //only used with concurrent access
-            VkBufferCreateInfo({
-                VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-                nullptr,
-                flags,
-                size,
-                usage,
-                queueFamilyIndices.size()? VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
-                queueFamilyIndices.size(),
-                queueFamilyIndices.data()
-            })
-        {}
-    };
+class BufferCreateInfo: public VkBufferCreateInfo {
+    BufferCreateInfo(VkBufferCreateFlags   flags,
+               VkDeviceSize          size,
+               VkBufferUsageFlags    usage,
+\               std::vector<uint32_t> queueFamilyIndices={}): //only used with concurrent access
+        VkBufferCreateInfo({
+            VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            nullptr,
+            flags,
+            size,
+            usage,
+            queueFamilyIndices.size()? VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
+            queueFamilyIndices.size(),
+            queueFamilyIndices.data()
+        })
+    {}
+};
+
+class Buffer: public HandleObject<VkBuffer, VK_OBJECT_TYPE_BUFFER> {
+public:
 
     struct Initializer {
         std::string     name;
@@ -42,25 +73,20 @@ public:
     };
 
                 Buffer(Initializer initializer);
-                ~Buffer(void);
-    operator    VkBuffer() const;
+                Buffer(const Device* pDevice, BufferCreateInfo* pInfo);
+    virtual     ~Buffer(void);
 
     Result      getResult(void) const;
-    bool        isValid(void) const;
-    VkBuffer    getHandle(void) const;
-    const char* getName(void) const;
-
 
     auto        getMemory(void) const -> std::shared_ptr<const DeviceMemory>;
     auto        getMemoryOffset(void) const -> VkDeviceSize;
     auto        getDeviceAddress(void) const -> VkDeviceAddress;
 
     auto        getMemoryRequirements(void) const -> VkMemoryRequirements;
-    VkResult    bindDeviceMemory(std::shared_ptr<DeviceMemory> pMemory, VkDeviceSize offset=0) const;
+    Result      bindDeviceMemory(std::shared_ptr<DeviceMemory> pMemory, VkDeviceSize offset=0) const;
 
 private:
     Initializer                     m_initializer;
-    VkBuffer                        m_handle        = VK_INVALID_HANDLE;
     std::shared_ptr<DeviceMemory>   m_pMemory       = nullptr; // shared ptr?
     VkDeviceSize                    m_memoryOffset  = 0;
     Result                          m_result;
@@ -82,12 +108,7 @@ inline Buffer::~Buffer(void) {
                     pRenderer? pRenderer->getAllocator() : nullptr);
 }
 
-Buffer::operator VkBuffer() const { return getHandle(); }
-
 inline Result Buffer::getResult(void) const { return m_result; }
-inline bool Buffer::isValid(void) const { return getHandle() != VK_INVALID_HANDLE && getMemory(); }
-inline VkBuffer Buffer::getHandle(void) const { return m_handle; }
-inline const char* Buffer::getName(void) const { return m_initializer.name.c_str(); }
 inline auto Buffer::getMemoryOffset(void) const -> VkDeviceSize { return m_memoryOffset; }
 
 inline VkMemoryRequirements Buffer::getMemoryRequirements(void) const {
@@ -108,7 +129,7 @@ inline VkDeviceAddress Buffer::getDeviceAddress(void) const {
     return vkGetBufferDeviceAddress(m_initializer.pDevice, &info);
 }
 
-inline VkResult Buffer::bindDeviceMemory(std::shared_ptr<DeviceMemory> pMemory, VkDeviceSize offset=0) const {
+inline Result Buffer::bindDeviceMemory(std::shared_ptr<DeviceMemory> pMemory, VkDeviceSize offset=0) const {
     const Result result = vkBindBufferMemory(m_initializer.pDevice,
                                              getHandle(),
                                              pMemory.get(),

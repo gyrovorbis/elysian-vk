@@ -37,31 +37,90 @@ typedef struct VkPipelineShaderStageCreateInfo {
 namespace elysian::renderer {
 
 
+
+class Layout: public VkPipelineLayoutCreateInfo {
+#if 0
+    // Provided by VK_VERSION_1_0
+    typedef struct VkPipelineLayoutCreateInfo {
+        VkStructureType                 sType;
+        const void*                     pNext;
+        VkPipelineLayoutCreateFlags     flags;
+        uint32_t                        setLayoutCount;
+        const VkDescriptorSetLayout*    pSetLayouts;
+        uint32_t                        pushConstantRangeCount;
+        const VkPushConstantRange*      pPushConstantRanges;
+    } VkPipelineLayoutCreateInfo;
+#endif
+public:
+    Layout(std::vector<DescriptorSetLayout> descriptorSetLayouts={},
+           std::vector<PushConstantRange>   pushConstants={}):
+        VkPipelineLayoutCreateInfo({
+            VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+            nullptr,
+            0,
+            descriptorSetLayouts.size(),
+            descriptorSetLayouts.data(),
+            pushConstants.size(),
+            pushConstants.data()
+        })
+    {}
+
+    DescriptorSetLayout* getDescriptorSetLayout(uint32_t set) const;
+    DescriptorSetLayout* getDescriptorSetLayout(const char* pName) const;
+};
+
+class ShaderStage: public VkPipelineShaderStageCreateInfo {
+public:
+    ShaderStage(VkPipelineShaderStageCreateFlags            flags,
+                        VkShaderStageFlagBits               stage,
+                        ShaderModule*                       pModule,
+                        const char*                         pName,
+                        const VkSpecializationInfo*         pSpecializationInfo=nullptr):
+        VkPipelineShaderStageCreateInfo({
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            nullptr,
+            flags,
+            stage,
+            pModule,
+            pName,
+            pSpecializationInfo
+        }),
+        m_pModule(pModule)
+    {}
+
+    const ShaderModule*     getModule(void) const;
+    VkShaderStageFlagBits   getStage(void) const;
+    const char*             getEntryPoint(void) const;
+private:
+    ShaderModule*                       m_pModule = nullptr;
+    //specialization info
+};
+
+class ComputePipelineCreateInfo: public VkComputePipelineCreateInfo {
+public:
+    ComputePipelineCreateInfo(VkPipelineCreateFlags              flags,
+               const ShaderStage*                 pStage,
+               VkPipelineLayout                   layout,
+               VkPipeline                         basePipelineHandle,
+               int32_t                            basePipelineIndex):
+        VkComputePipelineCreateInfo({
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+            nullptr,
+            flags,
+            stage,
+            layout,
+            basePipelineHandle,
+            basePipelineIndex
+        }),
+        m_pStage(pStage)
+    {}
+
+private:
+    const ShaderStage* m_pStage = nullptr;
+};
+
 class ComputePipeline: public Pipeline {
 public:
-
-    class CreateInfo: public VkComputePipelineCreateInfo {
-    public:
-        CreateInfo(VkPipelineCreateFlags              flags,
-                   const ShaderStage*                 pStage,
-                   VkPipelineLayout                   layout,
-                   VkPipeline                         basePipelineHandle,
-                   int32_t                            basePipelineIndex):
-            VkComputePipelineCreateInfo({
-                VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
-                nullptr,
-                flags,
-                stage,
-                layout,
-                basePipelineHandle,
-                basePipelineIndex
-            }),
-            m_pStage(pStage)
-        {}
-
-    private:
-        const ShaderStage* m_pStage = nullptr;
-    };
 
     struct Initializer {
         std::string                         name;
@@ -71,6 +130,7 @@ public:
     };
 
                 ComputePipeline(Initializer initializer);
+                ComputePipeline(const Device* pDevice, std::shared_ptr<const ComputePipelineCreateInfo> pInfo);//, PipelineCache* pPipelineCache);
                 ~ComputePipeline(void);
 
     operator    VkPipeline() const;
@@ -82,7 +142,7 @@ public:
 
 private:
     Result          m_result;
-    VkPipeline      m_handle            = VK_INVALID_HANDLE;
+    VkPipeline      m_handle            = VK_NULL_HANDLE;
     std::shared_ptr<const CreateInfo>
                     m_pInfo;
     std::string     m_name;

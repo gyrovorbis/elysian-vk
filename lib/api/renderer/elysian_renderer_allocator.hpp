@@ -6,14 +6,14 @@ namespace elysian::renderer {
 //AMD has an open-source implementation?
 class Allocator: public VkAllocationCallbacks {
 public:
-    AllocatorBase(void):
+    Allocator(void):
         VkAllocationCallbacks({
             this,
-            &allocationCallback,
-            &reallocationCallback,
-            &freeCallback,
-            &internalAllocationNotificationCallback,
-            &internalFreeNotificationCallback
+            &Allocator::allocationCallback,
+            &Allocator::reallocationCallback,
+            &Allocator::freeCallback,
+            &Allocator::internalAllocationNotificationCallback,
+            &Allocator::internalFreeNotificationCallback
         })
     {}
 

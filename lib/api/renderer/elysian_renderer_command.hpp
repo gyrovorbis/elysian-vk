@@ -1,43 +1,41 @@
 #ifndef ELYSIAN_RENDERER_COMMAND_HPP
 #define ELYSIAN_RENDERER_COMMAND_HPP
 
+#include "elysian_renderer_object.hpp"
+#include <vector>
+
 namespace elysian::renderer {
 
-class CommandPool {
+class CommandBufferGroup;
+
+class CommandPoolCreateInfo: public VkCommandPoolCreateInfo {
+public:
+    CommandPoolCreateInfo(uint32_t queueFamilyIndex, VkCommandPoolCreateFlags flags=0):
+        VkCommandPoolCreateInfo({
+            VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            nullptr,
+            flags,
+            queueFamilyIndex
+        })
+    {}
+};
+
+class CommandPool: public HandleObject<VkCommandPool, VK_OBJECT_TYPE_COMMAND_POOL> {
 public:
 
-    class CreateInfo: public VkCommandPoolCreateInfo {
-    public:
-        CreateInfo(VkCommandPoolCreateFlags flags, uint32_t queueFamilyIndex):
-            VkCommandPoolCreateInfo({
-                VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-                nullptr,
-                flags,
-                queueFamilyIndex
-            })
-        {}
-    };
+                CommandPool(const Device* pDevice, const CommandPoolCreateInfo* pCreateInfo);
+    virtual     ~CommandPool(void);
 
-    class Initializer {
-        std::string name;
-        CreateInfo  info;
-        Device*     pDevice;
-        Allocator*  pAllocator = nullptr;
-    };
-
-    CommandPool(Initializer initializer);
-    ~CommandPool(void);
-
-    uint32_t    getQueueFamilyIndex(void) const;
-    const char* getName(void) const;
-    VkCommandPoolCreateFlags getFlags(void) const;
+    Result      reset(VkCommandPoolResetFlags flags) const;
+        // Provided by VK_VERSION_1_1
+    void        trim(VkCommandPoolTrimFlags flags) const;
 
     Result      getResult(void) const;
-    bool        isValid(void) const;
+
+    CommandBufferGroup* createGroup(VkCommandBufferLevel level, uint32_t commandBufferCount);
 private:
-    std::string     m_name;
-    VkCommandPool   m_pool;
-    Result          m_result;
+    const Device*     m_pDevice = nullptr;
+    Result      m_result;
 };
 
 // don't know how to take state from pending back to executable?
@@ -45,7 +43,9 @@ private:
 // can validate draw commands without begin/end render pass
 // can validate compute in non-compute shit
 // count draw commands/verts/shit? Count binds and shit?
-class CommandBuffer {
+
+// SOME OF THIS SHIT REQUIRES SPECIFIC VULKAN DEVICE VERSIONS!!!
+class CommandBuffer: public HandleObject<VkCommandBuffer, VK_OBJECT_TYPE_COMMAND_BUFFER> {
 public:
 
     enum class State: uint8_t {
@@ -56,22 +56,24 @@ public:
         Invalid
     };
 
-    CommandBuffer(VkCommandBuffer vkBuffer, std::string name, const CommandBufferSet* pParentSet);
+    CommandBuffer(VkCommandBuffer vkBuffer, const CommandBufferGroup* pParentgroup);
 
-    VkCommandBuffer getHandle(void) const;
-    const char*     getName(void) const;
-    auto            getSet(void) const -> const CommandBufferSet*;
+    auto            getGroup(void) const -> const CommandBufferGroup*;
     uint32_t        getCommandCount(void) const;
 
     State           getState(void) const;
     Result          getResult(void) const;
-    bool            isValid(void) const;
 
-    Result begin(const VkCommandBufferBeginInfo& info) const;
-    Result end(void) const;
+    Result begin(const VkCommandBufferBeginInfo& info);
+    Result end(void);
     Result reset(VkCommandBufferResetFlags flags);
 
     // Actual commands to be enqueued
+
+    // Debugging
+    void cmdBeginDebugUtilsLabel(const char* pLabelName, float r=0.0f, float g=0.0f, float b=0.0f, float a=0.0f) const;
+    void cmdEndDebugUtilsLabel(void) const;
+    void cmdInsertDebugUtilsLabel(const char* pLabelName, float r=0.0f, float g=0.0f, float b=0.0f, float a=0.0f) const;
 
     void cmdExecuteCommands(uint32_t commandBufferCount, const VkCommandBuffer* pCommandBuffers) const;
 #if 0
@@ -79,151 +81,250 @@ public:
     If any element of pCommandBuffers was not recorded with the VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT flag, and it was recorded into any other primary command buffer which is currently in the executable or recording state, that primary command buffer becomes invalid.
 #endif
 
+    void cmdSetDeviceMask(uint32_t deviceMask) const; //better all be present within VkCommandGroupBeginInfo substruct!
+
     // Compute
     void cmdDispatch(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ);
     void cmdDispatchIndirect(VkBuffer buffer, VkDeviceSize offset);
 
-    void cmdBeginRenderPass(const VkRenderPassBeginInfo& info, VkSubpassContents subpassContents) const;
-    void cmdEndRenderPass(void) const;
+    void cmdBeginRenderPass(const VkRenderPassBeginInfo& info, VkSubpassContents subpassContents);
+    void cmdEndRenderPass(void);
 
-    void cmdBindPipeline(VkPipelineBindPoint pipelineBindPoint, VkPipeline pipeline) const;
+    // Binding
+    void cmdBindPipeline(VkPipelineBindPoint pipelineBindPoint, VkPipeline pipeline);
     void cmdBindIndexBuffer(VkBuffer buffer, VkDeviceSize offset, VkIndexType indexType) const;
     void cmdBindVertexBuffers(uint32_t firstBinding, uint32_t bindingCount, const VkBuffer* pBuffers, const VkDeviceSize* pOffsets) const;
     void cmdBindDescriptorSets(VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t firstSet, uint32_t descriptorSetCount, const VkDescriptorSet* pDescriptorSets, uint32_t dynamicOffsetCount, const uint32_t* pDynamicOffsets) const;
 
-    void cmdDraw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance) const;
-    void cmdDrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance) const;
+    // Drawing
+    void cmdDraw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
+    void cmdDrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
     void cmdDrawIndirect(VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride) const;
     void cmdDrawIndexedIndirect(VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride) const;
 
+    // Dynamic State
+    void cmdSetLineWidth(float lineWidth) const;
+    void cmdSetBlendConstants(const float blendConstants[4]) const;
+    void cmdSetDepthBias(float constantFactor, float clamp, float slopeFactor) const;
+    void cmdSetDepthBounds(float minBounds, float maxBounds) const;
+
+    // Query Pools
+    void cmdBeginQuery(VkQueryPool queryPool, uint32_t query, VkQueryControlFlags flags) const;
+    void cmdEndQuery(VkQueryPool queryPool, uint32_t query) const;
+    void cmdCopyQueryPoolResults(VkQueryPool queryPool,
+                                 uint32_t firstQuery,
+                                 uint32_t queryCount,
+                                 VkBuffer dstBuffer,
+                                 VkDeviceSize dstOffset,
+                                 VkDeviceSize stride,
+                                 VkQueryResultFlags flags) const;
+    void cmdResetQueryPool(VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount) const;
+    void cmdWriteTimestamp(VkPipelineStageFlagBits pipelineStage, VkQueryPool queryPool, uint32_t query) const;
+
+    // Events
+    void cmdSetEvent(VkEvent event, VkPipelineStageFlags stageFlags) const;
+    void cmdResetEvent(VkEvent event, VkPipelineStageFlags stageFlags) const;
+
+
 private:
-    VkCommandBuffer         m_handle    = VK_INVALID_HANDLE;
-    std::string             m_name;
-    const CommandBufferSet* m_pSet      = nullptr;
+    const CommandBufferGroup* m_pGroup      = nullptr;
     Result                  m_result;
     State                   m_state     = State::Initial;
     uint32_t                m_cmdCount  = 0;
     VkRenderPassBeginInfo   m_renderPassBeginInfo; //used for validation during recording
 };
 
-// Rename to Group, vulkan already has (descriptor) sets!
-class CommandBufferSet {
+class CommandBufferAllocateInfo: public VkCommandBufferAllocateInfo {
 public:
-    class AllocateInfo: public VkCommandBufferAllocateInfo {
-    public:
-        AllocateInfo(VkCommandPool          pool,
-                     VkCommandBufferLevel   level,
-                     uint32_t               commandBufferCount):
-            VkCommandBufferAllocateInfo({
-                VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-                nullptr,
-                pool,
-                level,
-                commandBufferCount
-            })
-        {}
-    };
+    CommandBufferAllocateInfo(VkCommandPool          pool,
+                 VkCommandBufferLevel   level,
+                 uint32_t               commandBufferCount):
+        VkCommandBufferAllocateInfo({
+            VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            nullptr,
+            pool,
+            level,
+            commandBufferCount
+        })
+    {}
+};
 
-    struct Initializer {
-        std::string              name;
-        const Device*            pDevice;
-        const CommandPool*       pPool;
-        AllocateInfo             allocInfo;
-        std::vector<std::string> bufferNames = {};
-    };
-
-                        CommandBufferSet(Initializer initializer);
-                        ~CommandBufferSet(void);
+// Rename to Group, vulkan already has (descriptor) sets!
+class CommandBufferGroup {
+public:
+                        CommandBufferGroup(const Device* pDevice, const CommandBufferAllocateInfo* pInfo);
+                        ~CommandBufferGroup(void);
 
     Result               getResult(void) const;
     bool                 isValid(void) const;
-    const char*          getName(void) const;
-    const CommandPool    getCommandPool(void) const;
+    const CommandPool*    getCommandPool(void) const;
 
     const CommandBuffer* getBuffer(uint32_t index=0) const;
     auto                 getBuffers(void) const -> const std::vector<CommandBuffer>&;
 
 private:
-    Initializer                 m_initializer;
+    const Device*               m_pDevice   = nullptr;
+    VkCommandPool               m_pool      = VK_NULL_HANDLE;
     std::vector<CommandBuffer>  m_buffers;
     Result                      m_result;
 };
 
-inline CommandBuffer::CommandBuffer(VkCommandBuffer vkBuffer, std::string name):
-    m_handle(vkBuffer),
-    m_name(std::move(name))
+inline CommandBuffer::CommandBuffer(VkCommandBuffer vkBuffer, const CommandBufferGroup* pGroup):
+    HandleObject<VkCommandBuffer, VK_OBJECT_TYPE_COMMAND_BUFFER>(nullptr, vkBuffer, nullptr),
+    m_pGroup(pGroup)
 {
-    std::assert(vkBuffer != VK_INVALID_HANDLE);
+    assert(vkBuffer != VK_NULL_HANDLE);
 }
 
-inline bool CommandBuffer::isValid(void) const { return getHandle() != VK_INVALID_HANDLE && getResult() && getState() != State::Invalid; }
-inline VkCommandBuffer CommandBuffer::getHandle(void) const { return m_handle; }
-inline const char* CommandBuffer::getName(void) const { return m_name.c_str(); }
 inline Result CommandBuffer::getResult(void) const { return m_result; }
-inline auto CommandBuffer::getState(void) const { return m_state; }
-inline const CommandBufferSet* CommandBuffer::getSet(void) const { return m_pSet; }
+inline auto CommandBuffer::getState(void) const -> State { return m_state; }
+inline const CommandBufferGroup* CommandBuffer::getGroup(void) const { return m_pGroup; }
 inline uint32_t CommandBuffer::getCommandCount(void) const { return m_cmdCount; }
 
-inline Result CommandBuffer::begin(const VkCommandBufferBeginInfo& info) const {
-    std::assert(getState() != State::Recording &&
-                getState() != Statr::Pending);
-    std::assert(getState() == State::Initial ||
-                getSet()->getCommandPool()->getFlags() & VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+inline Result CommandBuffer::begin(const VkCommandBufferBeginInfo& info) {
+    assert(getState() != State::Recording &&
+                getState() != State::Pending);
+    //assert(getState() == State::Initial ||
+      //          getGroup()->getCommandPool()->flags & VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
     m_result = vkBeginCommandBuffer(getHandle(), &info);
     m_state = m_result? State::Recording : State::Invalid;
 }
 
-inline Result CommandBuffer::end(void) const {
-    std::assert(getState() == State::Recording);
-    m_result = vEndCommandBuffer(getHandle());
-    std::assert(m_result);
+inline Result CommandBuffer::end(void) {
+    assert(getState() == State::Recording);
+    m_result = vkEndCommandBuffer(getHandle());
+    assert(m_result);
     m_state = m_result? State::Executable : State::Invalid;
 }
 
 inline Result CommandBuffer::reset(VkCommandBufferResetFlags flags) {
-    std::assert(getState() != State::Pending);
+    assert(getState() != State::Pending);
     m_result = vkResetCommandBuffer(getHandle(), flags);
-    std::assert(m_result);
+    assert(m_result);
     m_state = m_result? State::Initial : State::Invalid;
     m_cmdCount = 0;
 }
 
+inline void CommandBuffer::cmdSetDeviceMask(uint32_t deviceMask) const {
+    assert(getState() == State::Recording);
+    vkCmdSetDeviceMask(getHandle(), deviceMask);
+}
+
 inline void CommandBuffer::cmdDispatch(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ) {
-    std::assert(getState() == State::Recording);
+    assert(getState() == State::Recording);
     vkCmdDispatch(getHandle(), groupCountX, groupCountY, groupCountZ);
     ++m_cmdCount;
 }
 
-inline void CommandBuffer::cmdBeginRenderPass(const VkRenderPassBeginInfo& info, VkSubpassContents subpassContents) const {
-    std::assert(getState() == State::Recording);
+inline void CommandBuffer::cmdBeginRenderPass(const VkRenderPassBeginInfo& info, VkSubpassContents subpassContents) {
+    assert(getState() == State::Recording);
     vkCmdBeginRenderPass(getHandle(), &info, subpassContents);
     memcpy(&m_renderPassBeginInfo, &info, sizeof(VkRenderPassBeginInfo));
     ++m_cmdCount;
 }
 
-inline void CommandBuffer::cmdEndRenderPass(void) const {
-    std::assert(getState() == State::Recording);
+inline void CommandBuffer::cmdEndRenderPass(void) {
+    assert(getState() == State::Recording);
     vkCmdEndRenderPass(getHandle());
     ++m_cmdCount;
 }
 
-inline void CommandBuffer::cmdBindPipeline(VkPipelineBindPoint bindPoint, VkPipeline pipeline) const {
-    std::assert(getState() == State::Recording && pipeline != VK_INVALID_HANDLE);
+inline void CommandBuffer::cmdBindPipeline(VkPipelineBindPoint bindPoint, VkPipeline pipeline) {
+    assert(getState() == State::Recording && pipeline != VK_NULL_HANDLE);
     vkCmdBindPipeline(getHandle(), bindPoint, pipeline);
     ++m_cmdCount;
 }
 
-inline void CommandBuffer::cmdDraw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance) const {
-    std::assert(getState() == State::Recording);
+inline void CommandBuffer::cmdDraw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance) {
+    assert(getState() == State::Recording);
     vkCmdDraw(getHandle(), vertexCount, instanceCount, firstVertex, firstInstance);
     ++m_cmdCount;
 }
 
-inline void CommandBuffer::cmdDrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance) const {
-    std::assert(getState() == State::Recording);
+inline void CommandBuffer::cmdDrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance) {
+    assert(getState() == State::Recording);
     vkCmdDrawIndexed(getHandle(), indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
     ++m_cmdCount;
 }
+
+inline void CommandBuffer::cmdBeginDebugUtilsLabel(const char* pLabelName, float r, float g, float b, float a) const {
+    const auto label = VkDebugUtilsLabelEXT {
+        VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+        nullptr,
+        pLabelName,
+        { r, g, b, a }
+    };
+    vkCmdBeginDebugUtilsLabelEXT(getHandle(), &label);
+}
+
+inline void CommandBuffer::cmdEndDebugUtilsLabel(void) const {
+    vkCmdEndDebugUtilsLabelEXT(getHandle());
+}
+
+inline void CommandBuffer::cmdInsertDebugUtilsLabel(const char* pLabelName, float r, float g, float b, float a) const {
+    const auto label = VkDebugUtilsLabelEXT {
+        VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+        nullptr,
+        pLabelName,
+        { r, g, b, a }
+    };
+    vkCmdInsertDebugUtilsLabelEXT(getHandle(), &label);
+}
+
+inline void CommandBuffer::cmdSetLineWidth(float lineWidth) const {
+    vkCmdSetLineWidth(getHandle(), lineWidth);
+}
+
+inline void CommandBuffer::cmdSetBlendConstants(const float blendConstants[4]) const {
+    vkCmdSetBlendConstants(getHandle(), blendConstants);
+}
+
+
+inline void CommandBuffer::cmdSetDepthBias(float constantFactor, float clamp, float slopeFactor) const {
+    vkCmdSetDepthBias(getHandle(), constantFactor, clamp, slopeFactor);
+}
+
+inline void CommandBuffer::cmdSetDepthBounds(float minBounds, float maxBounds) const {
+    vkCmdSetDepthBounds(getHandle(), minBounds, maxBounds);
+}
+
+inline void CommandBuffer::cmdBeginQuery(VkQueryPool queryPool, uint32_t query, VkQueryControlFlags flags) const {
+    vkCmdBeginQuery(getHandle(), queryPool, query, flags);
+}
+
+inline void CommandBuffer::cmdEndQuery(VkQueryPool queryPool, uint32_t query) const {
+    vkCmdEndQuery(getHandle(), queryPool, query);
+}
+
+inline void CommandBuffer::cmdCopyQueryPoolResults(VkQueryPool queryPool,
+                                                    uint32_t firstQuery,
+                                                    uint32_t queryCount,
+                                                    VkBuffer dstBuffer,
+                                                    VkDeviceSize dstOffset,
+                                                    VkDeviceSize stride,
+                                                    VkQueryResultFlags flags) const
+{
+    vkCmdCopyQueryPoolResults(getHandle(), queryPool, firstQuery, queryCount, dstBuffer, dstOffset, stride, flags);
+}
+
+inline void CommandBuffer::cmdResetQueryPool(VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount) const {
+    vkCmdResetQueryPool(getHandle(), queryPool, firstQuery, queryCount);
+}
+
+inline void CommandBuffer::cmdWriteTimestamp(VkPipelineStageFlagBits pipelineStage, VkQueryPool queryPool, uint32_t query) const {
+    vkCmdWriteTimestamp(getHandle(), pipelineStage, queryPool, query);
+}
+
+inline void CommandBuffer::cmdSetEvent(VkEvent event, VkPipelineStageFlags stageFlags) const {
+    vkCmdSetEvent(getHandle(), event, stageFlags);
+}
+
+inline void CommandBuffer::cmdResetEvent(VkEvent event, VkPipelineStageFlags stageFlags) const {
+    vkCmdResetEvent(getHandle(), event, stageFlags);
+}
+
+
+
 
 #if 0
 // Provided by VK_VERSION_1_0
@@ -238,37 +339,6 @@ void vkCmdPipelineBarrier(
     const VkBufferMemoryBarrier*                pBufferMemoryBarriers,
     uint32_t                                    imageMemoryBarrierCount,
     const VkImageMemoryBarrier*                 pImageMemoryBarriers);
-
-void vkCmdBeginQuery(
-    VkCommandBuffer                             commandBuffer,
-    VkQueryPool                                 queryPool,
-    uint32_t                                    query,
-    VkQueryControlFlags                         flags);
-
-// Provided by VK_VERSION_1_0
-void vkCmdEndQuery(
-    VkCommandBuffer                             commandBuffer,
-    VkQueryPool                                 queryPool,
-    uint32_t                                    query);
-
-// Provided by VK_VERSION_1_0
-void vkCmdCopyQueryPoolResults(
-    VkCommandBuffer                             commandBuffer,
-    VkQueryPool                                 queryPool,
-    uint32_t                                    firstQuery,
-    uint32_t                                    queryCount,
-    VkBuffer                                    dstBuffer,
-    VkDeviceSize                                dstOffset,
-    VkDeviceSize                                stride,
-    VkQueryResultFlags                          flags);
-
-// Provided by VK_VERSION_1_0
-void vkCmdResetQueryPool(
-    VkCommandBuffer                             commandBuffer,
-    VkQueryPool                                 queryPool,
-    uint32_t                                    firstQuery,
-    uint32_t                                    queryCount);
-
 
 // Provided by VK_VERSION_1_0
 void vkCmdBlitImage(
@@ -361,46 +431,11 @@ void vkCmdPushConstants(
     const void*                                 pValues);
 
 // Provided by VK_VERSION_1_0
-void vkCmdResetEvent(
-    VkCommandBuffer                             commandBuffer,
-    VkEvent                                     event,
-    VkPipelineStageFlags                        stageMask);
-
-// Provided by VK_VERSION_1_0
-void vkCmdSetBlendConstants(
-    VkCommandBuffer                             commandBuffer,
-    const float                                 blendConstants[4]);
-
-// Provided by VK_VERSION_1_0
 void vkCmdSetScissor(
     VkCommandBuffer                             commandBuffer,
     uint32_t                                    firstScissor,
     uint32_t                                    scissorCount,
     const VkRect2D*                             pScissors);
-
-// Provided by VK_VERSION_1_0
-void vkCmdSetEvent(
-    VkCommandBuffer                             commandBuffer,
-    VkEvent                                     event,
-    VkPipelineStageFlags                        stageMask);
-
-// Provided by VK_VERSION_1_0
-void vkCmdSetDepthBias(
-    VkCommandBuffer                             commandBuffer,
-    float                                       depthBiasConstantFactor,
-    float                                       depthBiasClamp,
-    float                                       depthBiasSlopeFactor);
-
-// Provided by VK_VERSION_1_0
-void vkCmdSetDepthBounds(
-    VkCommandBuffer                             commandBuffer,
-    float                                       minDepthBounds,
-    float                                       maxDepthBounds);
-
-// Provided by VK_VERSION_1_0
-void vkCmdSetLineWidth(
-    VkCommandBuffer                             commandBuffer,
-    float                                       lineWidth);
 
 // Provided by VK_VERSION_1_0
 void vkCmdSetStencilCompareMask(
@@ -449,60 +484,19 @@ void vkCmdWaitEvents(
     uint32_t                                    imageMemoryBarrierCount,
     const VkImageMemoryBarrier*                 pImageMemoryBarriers);
 
-// Provided by VK_VERSION_1_0
-void vkCmdWriteTimestamp(
-    VkCommandBuffer                             commandBuffer,
-    VkPipelineStageFlagBits                     pipelineStage,
-    VkQueryPool                                 queryPool,
-    uint32_t                                    query);
+
+
+
 
 #endif
 
-inline CommandPool::CommandPool(Initializer initializer):
-    m_name(std::move(initializer.name))
-{
-    m_result = vkCreateCommandPool(initializer.pDevice, &initializer.info, initializer.pAllocator, &m_pool);
-}
 
-inline CommandPool::~CommandPool(void) {
-    vkDestroyCommandPool(initializer.pDevice, m_pool, nullptr);
-}
-
-
-inline CommandBufferSet::CommandBufferSet(Initializer initializer):
-    m_initiliazer(std::move(initializer))
-{
-    std::vector<VkCommandBuffer> vkBuffers(m_initializer.allocInfo.commandBufferCount, VK_INVALID_HANDLE);
-    m_buffers.reserve(m_initializer.allocInfo.commandBufferCount);
-    const Result result = vkAllocateCommandBuffers(m_initializer.pDevice, &m_initializer.allocInfo, vkBuffers.data());
-
-    for(int b = 0; b < vkBuffers.size(); ++b) {
-        m_buffers.emplace_back(vkBuffefs[b],
-                               ((b < m_initializer.bufferNames.size())?
-                                   std::move(m_initializer.bufferNames[b]) :
-                                   ""),
-                               this);
-    }
-}
-
-inline CommandBufferSet::~CommandBufferSet(void) {
-    std::vector<VkCommandBuffer> vkBuffers(m_buffers.size());
-    for(auto&& buff : m_buffers) {
-        vkBuffers.push_back(buff.getHandle());
-    }
-
-    vkFreeCommandBuffers(m_initializer.pDevice,
-                         m_initializer.allocInfo.
-                         m_initializer.allocInfo.commandPool,
-                         vkBuffers.data());
-}
-
-inline const CommandBuffer* CommandBufferSet::getBuffer(uint32_t index=0) const {
-    std::assert(index < m_buffers.size());
+inline const CommandBuffer* CommandBufferGroup::getBuffer(uint32_t index) const {
+    assert(index < m_buffers.size());
     return &m_buffers[index];
 }
 
-inline auto CommandBufferSet::getBuffers(void) const -> const std::vector<CommandBuffer>& {
+inline auto CommandBufferGroup::getBuffers(void) const -> const std::vector<CommandBuffer>& {
     return m_buffers;
 }
 

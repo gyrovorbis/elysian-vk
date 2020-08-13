@@ -4,6 +4,7 @@
 #include <initializer_list>
 #include <vector>
 
+#include "elysian_renderer_result.hpp"
 
 
 #if 0
@@ -45,11 +46,13 @@ ContainerUnwrapper::unwrap<(buffers)
 
 namespace elysian::renderer {
 
+class DebugLog;
 class Instance;
 class InstanceInitializer;
 class Device;
-class DeviceInitializer;
+class DeviceCreateInfo;
 class PhysicalDevice;
+class PhysicalDeviceGroup;
 class Allocator;
 class ShaderModuleCache;
 class InstanceLayerProperties;
@@ -61,46 +64,22 @@ public:
     //depth/color buffer size
 };
 
-// Wrap to debugExt shit
-class DebugLogIface {
-public:
-    enum class Severity {
-        Verbose,
-        Info,
-        Warning,
-        Error
-    };
-
-    enum class Source {
-        Renderer,
-        Driver_General,
-        Driver_Validation,
-        Driver_Performance
-    };
-
-    virtual void push(void) = 0;
-    virtual void pop(void) = 0;
-    virtual void write(Source source, Severity severity, const char* pBuffer) = 0;
-
-    void pop(unsigned count);
-
-    void logf(Source source, Severity severity, const char* pFmt, ...);
-    void log(Source source, Severity severity, const char *pFmt, va_list vaList);
-};
-
 //Lowest-level render shit, not really used directly by game (Use RenderSystem instead!)
 //Need to take a top-level log for writing shit independently of validation layers...
 class Renderer {
     public:
 
         struct Initializer {
+            DebugLog*       pLog = nullptr;
             const Allocator* pAllocator = nullptr;
             const InstanceInitializer* pInstanceInitializer;
-            std::initializer_list<const DeviceInitializer*> deviceInitializers;
+            //std::initializer_list<const DeviceInitializer*> deviceInitializers;
         };
 
-        Renderer(Initializer initializer);
+        Renderer(Initializer* initializer);
         ~Renderer(void);
+
+        static std::pair<Result, Version> getInstanceVersion(void);
 
         bool isValid(void) const; //m_apiInstance created successfully
 
@@ -115,35 +94,48 @@ class Renderer {
 
         const Device* getDevice(int index) const;
         const Device* getDevice(const char* pName) const;
+        Device* createDevice(const char* pName, const PhysicalDevice* pDevice, std::shared_ptr<const DeviceCreateInfo> pCreateInfo);
+
+        DebugLog* getLog(void) const;
 
         //PhysicalDevice* selectPhysicalDevice(const PhysicalDeviceSelector& selector) const;
         //select memory heap/type and command pool/type
 
+
+
     private:
         bool initialize(const Initializer& initializer);
         bool queryInstanceLayerProperties(void);
-        bool queryInstnaceExtensionProperties(void);
+        bool queryInstanceExtensionProperties(void);
         bool createInstance(const InstanceInitializer& initializer);
         bool queryPhysicalDevices(void);
-        Device* createDevice(const DeviceInitializer& initializer);
+        bool queryPhysicalDeviceGroups(void);
 
         //Debug log level
-        std::unique_ptr<Allocator>                      m_pAllocator;
+        //std::unique_ptr<Allocator>                      m_pAllocator;
+
+        DebugLog*                                       m_pLog = nullptr;
 
         std::unique_ptr<InstanceExtensionProperties>    m_pInstanceExtensionProperties;
         std::unique_ptr<InstanceLayerProperties>        m_pInstanceLayerProperties;
         std::unique_ptr<Instance>                       m_pInstance;
 
         std::unique_ptr<std::vector<PhysicalDevice>> 	m_pPhysicalDevices;
-        std::vector<std::unique_ptr<Device*>>           m_devices;
+        std::unique_ptr<std::vector<PhysicalDeviceGroup>>
+                                                        m_pPhysicalDeviceGroups;
+        std::unique_ptr<std::vector<Device>>            m_pDevices;
 
         std::unique_ptr<DynamicSettings>				m_pDynamicSettings;
         //pipeline cache
-        std::unique_ptr<ShaderModuleCache>              m_pShaderModuleCache;
+        //std::unique_ptr<ShaderModuleCache>              m_pShaderModuleCache;
 
         friend std::ostream& operator<<(std::ostream& os, const Renderer& render);
 
+
 };
+
+inline DebugLog* Renderer::getLog(void) const { return m_pLog; }
+inline const Instance* Renderer::getInstance(void) const { return m_pInstance.get(); }
 
 
 } // namespace elysian::renderer
