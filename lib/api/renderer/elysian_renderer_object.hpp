@@ -9,20 +9,6 @@ namespace elysian::renderer {
 
 class Device;
 
-template<typename Handle, typename Parent>
-class HandleObject: public Handle {
-public:
-    HandleObject(Parent* pParent, Handle handle);
-
-protected:
-
-
-private:
-    Parent* m_pParent = nullptr;
-    Handle m_handle = VK_NULL_HANDLE;
-};
-
-
 class Object {
 public:
     virtual                     ~Object(void) = default;

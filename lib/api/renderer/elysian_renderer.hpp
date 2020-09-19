@@ -58,6 +58,29 @@ class ShaderModuleCache;
 class InstanceLayerProperties;
 class InstanceExtensionProperties;
 
+class ProcAddrCache {
+public:
+    virtual PFN_vkVoidFunction getProcAddr(const char* pName) = 0;
+
+    PFN_vkVoidFunction         getFunction(const char* pName) {
+        PFN_vkVoidFunction* pFunc = nullptr;
+        if(auto it = m_cache.find(pName);
+                it != m_cache.end())
+        {
+            pFunc = it.value();
+        } else {
+            pFunc = getProcAddr(pName);
+            m_cache.insert({pName, pFunc});
+        }
+        return pFunc;
+    }
+
+    void reset(void) { m_cache.clear(); }
+private:
+    std::unsorted_map<std::string, PFN_vkVoidFunction> m_cache;
+};
+
+
 class DynamicSettings {
 public:
     //multisampling, anti aliasing, mip mapping, shadow map size,
@@ -66,6 +89,7 @@ public:
 
 //Lowest-level render shit, not really used directly by game (Use RenderSystem instead!)
 //Need to take a top-level log for writing shit independently of validation layers...
+// Pipeline cache source file?
 class Renderer {
     public:
 

@@ -70,6 +70,15 @@ private:
 class ShaderModuleCache {
 public:
     const ShaderModule* fetchModule(const char* pFilePath);
+
+#if 0
+    // Provided by VK_EXT_validation_cache
+    typedef struct VkShaderModuleValidationCacheCreateInfoEXT {
+        VkStructureType         sType;
+        const void*             pNext;
+        VkValidationCacheEXT    validationCache;
+    } VkShaderModuleValidationCacheCreateInfoEXT;
+#endif
 private:
     std::vector<ShaderModule> m_modules;
 };

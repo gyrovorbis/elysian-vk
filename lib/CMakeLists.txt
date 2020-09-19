@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(ELYSIAN_RENDERER_INCLUDES
     api/renderer/elysian_renderer.hpp
+    api/renderer/elysian_renderer_vulkan.hpp
     api/renderer/elysian_renderer_device.hpp
     api/renderer/elysian_renderer_shader.hpp
     api/renderer/elysian_renderer_queue.hpp
@@ -30,7 +31,10 @@ set(ELYSIAN_RENDERER_INCLUDES
     api/renderer/elysian_renderer_physical_device.hpp
     api/renderer/elysian_renderer_debug_log.hpp
     api/renderer/elysian_renderer_object.hpp
-    api/renderer/elysian_renderer_query.hpp)
+    api/renderer/elysian_renderer_query.hpp
+    api/renderer/elysian_vk_context.hpp
+    api/renderer/elysian_renderer_extensions.hpp
+    lib/vma/src/VmaUsage.h)
 
 set(ELYSIAN_RENDERER_SOURCES
     source/elysian_renderer.cpp
@@ -40,7 +44,8 @@ set(ELYSIAN_RENDERER_SOURCES
     source/elysian_renderer_object.cpp
     source/elysian_renderer_queue.cpp
     source/elysian_renderer_device.cpp
-    source/elysian_renderer_command.cpp)
+    source/elysian_renderer_command.cpp
+    lib/vma/src/VmaUsage.cpp)
 
 find_library(VULKAN_LIB      vulkan)
 find_library(MOLTENVK_LIB    MoltenVK)
@@ -61,7 +66,7 @@ add_library(VkRenderer STATIC
 
 target_include_directories(VkRenderer
     PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/api>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/api ${CMAKE_CURRENT_SOURCE_DIR}/lib/vma/src>
         $<INSTALL_INTERFACE:api>
         ${VULKAN_INCLUDE}
     PRIVATE

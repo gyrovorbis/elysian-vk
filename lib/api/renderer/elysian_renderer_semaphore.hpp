@@ -28,6 +28,13 @@ public:
 
     Result      getResult(void) const;
     auto        getCreateInfo(void) const -> std::shared_ptr<const CreateInfo>;
+    uint64_t    getCounterValue(void) const;
+    Result      signal(uint64_t value);
+
+    Result      wait(uint64_t timeout) const;
+
+    uintptr_t   getNativeHandle(void) const;
+    //IMPORT FROM EXISTING NATIVE HANDLE
 
 #if 0
     VkResult
@@ -45,6 +52,21 @@ public:
         VkDevice                                    device,
         const VkSemaphoreWaitInfo*                  pWaitInfo,
         uint64_t                                    timeout);
+
+    // Provided by VK_KHR_external_semaphore_win32
+    VkResult vkGetSemaphoreWin32HandleKHR(
+        VkDevice                                    device,
+        const VkSemaphoreGetWin32HandleInfoKHR*     pGetWin32HandleInfo,
+        HANDLE*                                     pHandle);
+
+    // Provided by VK_KHR_external_semaphore_fd
+    VkResult vkGetSemaphoreFdKHR(
+        VkDevice                                    device,
+        const VkSemaphoreGetFdInfoKHR*              pGetFdInfo,
+        int*                                        pFd);
+
+    getNativeHandle();
+    xVkImportSemaphoreFdInfoKHR, VkImportSemaphoreWin32HandleInfoKHR,
 
 #endif
 
@@ -81,6 +103,9 @@ public:
 
     Result          getResult(void) const;
     Result          getStatus(void) const;
+
+    uintptr_t       getNativeHandle(void) const;
+
     auto            getCreateInfo(void) const -> std::shared_ptr<const CreateInfo>;
 
 private:

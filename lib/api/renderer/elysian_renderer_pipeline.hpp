@@ -324,6 +324,15 @@ public:
     {}
 
     const char* getName(void) const;
+
+#if 0
+    // Provided by VK_KHR_pipeline_executable_properties
+    VkResult vkGetPipelineExecutablePropertiesKHR(
+        VkDevice                                    device,
+        const VkPipelineInfoKHR*                    pPipelineInfo,
+        uint32_t*                                   pExecutableCount,
+        VkPipelineExecutablePropertiesKHR*          pProperties);
+#endif
 private:
 
     std::string        m_name;

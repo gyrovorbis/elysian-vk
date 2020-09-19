@@ -16,6 +16,19 @@ class DebugUtilsMessengerEXT;
 class DebugUtilsMessengerEXTInitializer;
 class DebugUtilsMessengerEXTCreateInfo;
 
+class InstanceProcAddrCache: public ProcAddrCache {
+public:
+    InstanceProcAddrCache(Instance* pInstance):
+        m_pInstance(pInstance) {}
+
+    virtual PFN_vkVoidFunction getProcAddr(const char* pName) override {
+        return vkGetInstanceProcAddr(m_pInstance->getHandle(), pName);
+    }
+
+private:
+    Instance* m_pInstance = nullptr;
+};
+
 class InstanceExtensionProperties {
 public:
     InstanceExtensionProperties(const char* pLayerName=nullptr);
@@ -94,7 +107,16 @@ struct InstanceInitializer {
     DebugUtilsMessengerEXTCreateInfo* pDebugCreateInfo;
 };
 
+class FileSystemProperties {
+public:
+    std::string getPath(const char* pSubDir);
+    const char* getRootDir(void) const;
+private:
+    std::string m_rootDir;
+};
 
+// Default file path shit?
+// Filesystem object type for loading and shit?
 class Instance: public HandleObject<VkInstance, VK_OBJECT_TYPE_INSTANCE> {
     friend class Renderer;
 public:
@@ -125,6 +147,8 @@ private:
     std::unique_ptr<DebugUtilsMessengerEXT> m_dbgMessengerEXT;
     Renderer*                               m_pRenderer = nullptr;
     Result                                  m_result;
+    ShaderModuleCache*                      m_pShaderModuleCache = nullptr;
+    InstanceProcAddrCache m_procAddrCache; // start fetching everything through this bitch
 };
 
 }

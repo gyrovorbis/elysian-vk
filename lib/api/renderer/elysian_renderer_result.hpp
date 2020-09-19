@@ -8,6 +8,74 @@
 
 namespace elysian::renderer {
 
+template<typename Struct>
+class VariableLengthStruct {
+public:
+
+    VariableLengthStruct(size_t initialSize=sizeof(Struct), const void* pInitialData=nullptr) {
+        setSize(initialSize);
+    }
+
+    VariableLengthStruct(const Struct& rhs):
+        VariableLengthStruct(sizeof(Struct))
+    {
+        memcpy(m_pData, &rhs, sizeof(Struct));
+    }
+
+    ~VariableLengthStruct(void)  { setSize(0); }
+
+    const VariableLengthStruct& operator=(const Struct& rhs) {
+        setData(rhs);
+    }
+
+    operator        Struct*() { return m_pData; }
+    operator        const Struct*() const { return m_pData; }
+    operator        Struct() const {
+        Struct value;
+        memset(&value,  0, sizeof(Struct));
+        if(!isNull()) memcpy(&value, getData(), getSize());
+        return value;
+    }
+
+    void setData(const Struct& rhs, size_t size=sizeof(Struct)) {
+        setData(static_cast<const void*>(&rhs), size);
+    }
+
+    void setData(const void* pData, size_t size) {
+        assert(pData && size);
+        setSize(size);
+        memcpy(pData, &rhs, size);
+    }
+
+    void setSize(size_t newSize) {
+        if(!m_pData) {
+            m_pData = static_cast<Struct*>(malloc(newSize));
+            memset(m_pData, 0, newSize);
+        } else if(newSize != getSize()) {
+            m_pData = realloc(m_pData, newSize);
+        } else if(!size) {
+            free(m_pData);
+            m_pData = nullptr;
+        }
+
+        m_dataSize = newSize;
+    }
+
+    const Struct*   getData(void) const { return m_pData; }
+    Struct*         getData(void) { return m_pData; }
+    size_t          getSize(void) const { return m_dataSize; }
+    //size_t          getCopiedSize(void) const { return m_copiedSize; }
+    //void            setCopiedSize(size_t size) { m_copiedSize = size; }
+    bool            isValid(void) const { return getData() && getSize() >= sizeof(Struct); }
+    bool            isNull(void) const { return !getData() || !getSize(); }
+    //bool            isPopulated(void) const { return isValid() && getCopiedSize(); }
+
+private:
+    Struct* m_pData       = nullptr;
+    size_t  m_dataSize    = 0;
+    //size_t  m_copiedSize  = 0;
+};
+
     class Version {
     public:
         constexpr Version(uint16_t major, uint16_t minor, uint16_t patch):
@@ -50,11 +118,14 @@ namespace elysian::renderer {
     inline VkResult Result::getCode(void) const { return m_result; }
     inline const char* Result::toString(void) const { return "TEMP"; }
 
-    inline std::string Version::toString(void) const {
+    inline std::string Version::toString(void) const { // WHAT THE FUCK
         char buff[64];
         snprintf(buff, sizeof(buff), "%u.%u.%u", getMajor(), getMinor(), getPatch());
         return buff;
     }
+
+    template<typename V>
+    using ResultValue = std::pair<Result, V>;
 
 
     /// Utility class used for stringifying bitfields into printable, user-friendly strings for

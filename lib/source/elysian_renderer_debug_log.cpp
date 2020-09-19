@@ -7,34 +7,34 @@ void DebugLog::pop(unsigned count) {
     for(unsigned c = 0; c < count; ++c) pop();
 }
 
-void DebugLog::log(Source source, Severity severity, const char *pFmt, ...) {
+void DebugLog::log(Source source, Severity severity,  DebugLogStringContextWrapper pFmt, ...) {
     va_list args;
     va_start(args, pFmt);
-    write(source, severity, args, pFmt);
+    write(source, severity, pFmt, args, pFmt);
     va_end(args);
 }
-void DebugLog::info(const char *pFmt, ...) {
+void DebugLog::info(DebugLogStringContextWrapper pFmt, ...) {
     va_list args;
     va_start(args, pFmt);
-    write(Source::Renderer, Severity::Info, args, pFmt);
+    write(Source::Renderer, Severity::Info, pFmt, args, pFmt);
     va_end(args);
 }
-void DebugLog::warn(const char *pFmt, ...) {
+void DebugLog::warn(DebugLogStringContextWrapper pFmt, ...) {
     va_list args;
     va_start(args, pFmt);
-    write(Source::Renderer, Severity::Warning, args, pFmt);
+    write(Source::Renderer, Severity::Warning, pFmt, args, pFmt);
     va_end(args);
 }
-void DebugLog::verbose(const char* pFmt, ...) {
+void DebugLog::verbose(DebugLogStringContextWrapper pFmt, ...) {
     va_list args;
     va_start(args, pFmt);
-    write(Source::Renderer, Severity::Verbose, args, pFmt);
+    write(Source::Renderer, Severity::Verbose, pFmt, args, pFmt);
     va_end(args);
 }
-void DebugLog::error(const char* pFmt, ...) {
+void DebugLog::error(DebugLogStringContextWrapper pFmt, ...) {
     va_list args;
     va_start(args, pFmt);
-    write(Source::Renderer, Severity::Error, args, pFmt);
+    write(Source::Renderer, Severity::Error, pFmt, args, pFmt);
     va_end(args);
 }
 

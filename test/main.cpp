@@ -23,13 +23,13 @@ public:
         Q_ASSERT(m_depth--);
     }
 
-    virtual void write(Source source, Severity severity, va_list args, const char* pFormat) override {
+    virtual void write(Source source, Severity severity, const std::source_location& sourceLoc, va_list args, const char* pFormat) override {
         const QString buff = QString::vasprintf(pFormat, args);
 
         QString msg;
         QString src;
         switch(source) {
-        case Source::Renderer:              /*src = "Renderer";*/    break;
+        case Source::ElysianVk:              /*src = "Renderer";*/    break;
         case Source::Driver_General:        src = "[Driver] ";      break;
         case Source::Driver_Validation:     src = "[Validation] ";  break;
         case Source::Driver_Performance:    src = "[Performance] "; break;
@@ -45,7 +45,7 @@ public:
             std::cout << msg.toStdString() << std::endl; break;
         case Severity::Warning:
         case Severity::Error:
-            std::cerr << msg.toStdString() << std::endl; break;
+            std::cerr << msg.toStdString() << sourceLoc.source_file << std::endl; break;
        }
     }
 
@@ -104,6 +104,7 @@ int main()
                                          { "outputBuffer", 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT }
                                      }}
                                   })));
+
 
 
     // Create input/output buffers

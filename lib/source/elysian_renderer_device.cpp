@@ -64,11 +64,19 @@ Device::Device(const char* pName, const PhysicalDevice* pDevice, std::shared_ptr
         }
     }
 
+    VmaAllocatorCreateInfo vmaAllocatorInfo = {
+        .physicalDevice = m_pPhysicalDevice->getHandle(),
+        .device = getHandle(),
+        .instance = m_pRenderer->getInstance()
+    };
+    vmaCreateAllocator(&allocatorInfo, &m_vmaAllocator);
+
     m_pRenderer->getLog()->pop();
 }
 
 Device::~Device(void) {
     waitIdle();
+    vmaDestroyAllocator(m_vmaAllocator);
     vkDestroyDevice(getHandle(), nullptr);
 }
 

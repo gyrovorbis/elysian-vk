@@ -1,6 +1,43 @@
 #ifndef ELYSIAN_RENDERER_COMPUTE_PIPELINE_HPP
 #define ELYSIAN_RENDERER_COMPUTE_PIPELINE_HPP
 
+/* Have to figure out what the fuck metadata the pipeline cache file would require
+ * to uniquely identify LogicalDevices to validate shit when restored... Is that even right?
+ * A UUID could be the same on Windows + Mac and the underlying driver/data could be totally different?*/
+
+class PipelineCache: public DeviceHandle<VkPipelineCache> {
+public:
+    PipelineCache(Context* pContext, vk::PipelineCacheCreateInfo* pInfo);
+    PipelineCache(Context* pContext, VkPipelineCacheCreateFlags flags, const char* prefixPath);
+
+    Result getData(size_t* pSize, void* pData) const;
+    Result merge(std::vector<PipelineCache*> srcCaches) const;
+
+    bool save(void) const;
+    bool load(void) const;
+
+    std::string getFilePath(void) const;
+
+#if 0
+    // Provided by VK_VERSION_1_0
+    VkResult vkGetPipelineCacheData(
+        VkDevice                                    device,
+        VkPipelineCache                             pipelineCache,
+        size_t*                                     pDataSize,
+        void*                                       pData);
+
+    // Provided by VK_VERSION_1_0
+    VkResult vkMergePipelineCaches(
+        VkDevice                                    device,
+        VkPipelineCache                             dstCache,
+        uint32_t                                    srcCacheCount,
+        const VkPipelineCache*                      pSrcCaches);
+#endif
+
+private:
+    Context* m_pContext = nullptr;
+    std::string prefixPath;
+};
 #if 0
 // Provided by VK_VERSION_1_0
 VkResult vkCreateComputePipelines(
